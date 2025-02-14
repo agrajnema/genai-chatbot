@@ -1,0 +1,47 @@
+langchain
+ipykernel
+python-dotenv
+langchain_community
+pypdf
+bs4
+arxiv
+pymupdf
+Wikipedia
+langchain_text_splitters
+langchain_ollama
+langchain-huggingface
+faiss-cpu
+langchain_chroma
+langchain_openai
+streamlit
+langchain_groq
+fastapi
+uvicorn
+langserve
+sse_starlette
+atlassian-python-api
+#lxml
+#pytesseract
+#pillow
+# tesseract
+# pdf2image
+# python-poppler
+selenium 
+webdriver-manager
+mysql-connector-python
+pymysql
+
+pyodbc
+langchain_experimental
+
+#Okta
+authlib
+pkce
+fastapi
+
+langchain-ollama
+scikit-learn
+# pdf2image
+# pytesseract
+
+pdfplumber
