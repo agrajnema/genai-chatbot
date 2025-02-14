@@ -150,7 +150,7 @@ logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(
 
 class OptimizedSentenceTransformerEmbeddings(Embeddings):
     def __init__(self, 
-                 model_name: str = "C:\\SelfLearning\\DS\\GenerativeAI\\embedding_local_model",
+                 model_name: str ='sentence-transformers/all-MiniLM-L6-v2', #"C:\\SelfLearning\\DS\\GenerativeAI\\embedding_local_model",
                  batch_size: int = 32,
                  device: Optional[str] = None):
         """

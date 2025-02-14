@@ -8,18 +8,18 @@ arxiv
 pymupdf
 Wikipedia
 langchain_text_splitters
-langchain_ollama
+#langchain_ollama
 langchain-huggingface
 faiss-cpu
 langchain_chroma
-langchain_openai
-streamlit
-langchain_groq
-fastapi
-uvicorn
-langserve
-sse_starlette
-atlassian-python-api
+#langchain_openai
+#streamlit
+#langchain_groq
+#fastapi
+#uvicorn
+#langserve
+#sse_starlette
+#atlassian-python-api
 #lxml
 #pytesseract
 #pillow
@@ -28,20 +28,20 @@ atlassian-python-api
 # python-poppler
 selenium 
 webdriver-manager
-mysql-connector-python
-pymysql
+# mysql-connector-python
+# pymysql
 
-pyodbc
-langchain_experimental
+# pyodbc
+#langchain_experimental
 
 #Okta
-authlib
-pkce
-fastapi
+#authlib
+#pkce
+#fastapi
 
-langchain-ollama
-scikit-learn
+#langchain-ollama
+#scikit-learn
 # pdf2image
 # pytesseract
 
-pdfplumber
+#pdfplumber
