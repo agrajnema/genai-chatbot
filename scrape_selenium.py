@@ -260,7 +260,13 @@ def scrape_page(url: str) -> Tuple[Optional[str], Set[str]]:
 
         mark_as_visited(url)
         #store_in_vector_db(url, page_text)
-        vector_store.store_in_vector_db(url, html=page_text)
+        #vector_store.store_in_vector_db(url, html=page_text)
+
+        if page_text:
+            logging.info(f"Storing scraped content from {url} into vector DB. Length: {len(page_text)} characters")
+            vector_store.store_in_vector_db(url, html=page_text)
+        else:
+            logging.warning(f"No text extracted from {url}, skipping storage")
 
         return page_text, links
 

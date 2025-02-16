@@ -12,36 +12,36 @@ langchain_text_splitters
 langchain-huggingface
 faiss-cpu
 langchain_chroma
-#langchain_openai
-#streamlit
-#langchain_groq
-#fastapi
-#uvicorn
-#langserve
-#sse_starlette
-#atlassian-python-api
+selenium 
+webdriver-manager
+langchain_ollama
+langchain_openai
+streamlit
+langchain-groq
+fastapi
+uvicorn
+langserve
+# sse_starlette
+# atlassian-python-api
 #lxml
 #pytesseract
 #pillow
 # tesseract
 # pdf2image
 # python-poppler
-selenium 
-webdriver-manager
-# mysql-connector-python
-# pymysql
-
-# pyodbc
-#langchain_experimental
+#mysql-connector-python
+#pymysql
+#pyodbc
+langchain_experimental
 
 #Okta
-#authlib
-#pkce
-#fastapi
+authlib
+pkce
+fastapi
 
-#langchain-ollama
-#scikit-learn
+scikit-learn
 # pdf2image
 # pytesseract
+pdfplumber
 
-#pdfplumber
+langchain-groq
