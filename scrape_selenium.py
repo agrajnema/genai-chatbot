@@ -223,32 +223,110 @@ def interact_with_page(driver: webdriver.Chrome):
             break
         last_height = new_height
 
+# def scrape_page(url: str) -> Tuple[Optional[str], Set[str]]:
+#     """Scrape a webpage and extract text and internal links."""
+#     print('inside scrape_page 1')
+#     if is_visited(url):
+#         return None, set()
+
+#     driver = None
+#     try:
+#         logging.info(f"Scraping: {url}")
+#         driver = init_driver()
+#         driver.get(url)
+        
+#         # Wait for the page to load
+#         wait = WebDriverWait(driver, WAIT_TIME)
+#         wait.until(EC.presence_of_element_located((By.TAG_NAME, "body")))
+        
+#         interact_with_page(driver)
+#         print('inside scrape_page 2')
+#         # Extract content using BeautifulSoup
+#         soup = BeautifulSoup(driver.page_source, "html.parser")
+        
+#         # Remove unwanted elements
+#         for element in soup.select('script, style, meta, link'):
+#             element.decompose()
+
+#         # Extract text content
+#         page_text = ' '.join(soup.stripped_strings)
+#         print('inside scrape_page 3')
+#         print(page_text)
+#         # Extract internal links
+#         links = set()
+#         base_domain = urlparse(url).netloc
+#         for a_tag in soup.find_all("a", href=True):
+#             link = urljoin(url, a_tag["href"])
+#             if urlparse(link).netloc == base_domain and not link.endswith(('.pdf', '.jpg', '.png')):
+#                 links.add(link)
+
+#         mark_as_visited(url)
+#         #store_in_vector_db(url, page_text)
+#         #vector_store.store_in_vector_db(url, html=page_text)
+#         print('inside scrape_page 4')
+#         if page_text:
+#             logging.info(f"Storing scraped content from {url} into vector DB. Length: {len(page_text)} characters")
+#             vector_store.store_website_data(url, html=page_text)
+#         else:
+#             logging.warning(f"No text extracted from {url}, skipping storage")
+
+#         return page_text, links
+
+#     except Exception as e:
+#         logging.error(f"Error scraping {url}: {e}")
+#         return None, set()
+#     finally:
+#         if driver:
+#             driver.quit()
+
+
 def scrape_page(url: str) -> Tuple[Optional[str], Set[str]]:
     """Scrape a webpage and extract text and internal links."""
     if is_visited(url):
+        logging.info(f"URL already visited: {url}")
         return None, set()
 
     driver = None
     try:
-        logging.info(f"Scraping: {url}")
+        logging.info(f"Starting to scrape: {url}")
         driver = init_driver()
         driver.get(url)
         
-        # Wait for the page to load
-        wait = WebDriverWait(driver, WAIT_TIME)
-        wait.until(EC.presence_of_element_located((By.TAG_NAME, "body")))
+        # Add explicit wait for page load
+        WebDriverWait(driver, WAIT_TIME).until(
+            EC.presence_of_element_located((By.TAG_NAME, "body"))
+        )
         
+        # Get page source before interaction
+        initial_content = driver.page_source
+        
+        # Interact with page to reveal dynamic content
         interact_with_page(driver)
-
+        
+        # Get updated content after interaction
+        final_content = driver.page_source
+        
         # Extract content using BeautifulSoup
-        soup = BeautifulSoup(driver.page_source, "html.parser")
+        soup = BeautifulSoup(final_content, "html.parser")
         
         # Remove unwanted elements
         for element in soup.select('script, style, meta, link'):
             element.decompose()
 
-        # Extract text content
-        page_text = ' '.join(soup.stripped_strings)
+        # Extract text content with better cleaning
+        texts = []
+        for text in soup.stripped_strings:
+            cleaned_text = ' '.join(text.split())  # Remove extra whitespace
+            if cleaned_text:  # Only add non-empty strings
+                texts.append(cleaned_text)
+        
+        page_text = ' '.join(texts)
+        
+        if not page_text.strip():
+            logging.warning(f"No text content extracted from {url}")
+            return None, set()
+            
+        logging.info(f"Extracted {len(page_text)} characters from {url}")
 
         # Extract internal links
         links = set()
@@ -258,16 +336,15 @@ def scrape_page(url: str) -> Tuple[Optional[str], Set[str]]:
             if urlparse(link).netloc == base_domain and not link.endswith(('.pdf', '.jpg', '.png')):
                 links.add(link)
 
+        # Store in vector database with error handling
+        try:
+            vector_store.store_website_data(url=url, html=page_text)
+            logging.info(f"Successfully stored content from {url} in vector database")
+        except Exception as e:
+            logging.error(f"Failed to store content in vector database for {url}: {e}")
+            return None, set()
+
         mark_as_visited(url)
-        #store_in_vector_db(url, page_text)
-        #vector_store.store_in_vector_db(url, html=page_text)
-
-        if page_text:
-            logging.info(f"Storing scraped content from {url} into vector DB. Length: {len(page_text)} characters")
-            vector_store.store_in_vector_db(url, html=page_text)
-        else:
-            logging.warning(f"No text extracted from {url}, skipping storage")
-
         return page_text, links
 
     except Exception as e:
@@ -275,9 +352,12 @@ def scrape_page(url: str) -> Tuple[Optional[str], Set[str]]:
         return None, set()
     finally:
         if driver:
-            driver.quit()
+            try:
+                driver.quit()
+            except Exception as e:
+                logging.error(f"Error closing driver: {e}")
 
-def scrape_domain(start_url: str, max_pages: int = 50):
+def scrape_domain(start_url: str, max_pages: int = 10000):
     """Multi-threaded scraping of all pages under a domain with rate limiting."""
     init_db()
     to_scrape = {start_url}
