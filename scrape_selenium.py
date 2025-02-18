@@ -1,130 +1,5 @@
-# from selenium import webdriver
-# from selenium.webdriver.chrome.service import Service
-# from webdriver_manager.chrome import ChromeDriverManager
-# from selenium.webdriver.chrome.options import Options
-# from selenium.webdriver.common.by import By
-# from selenium.webdriver.common.keys import Keys
-# from selenium.webdriver.support.ui import WebDriverWait
-# from selenium.webdriver.support import expected_conditions as EC
-# from bs4 import BeautifulSoup
-# import time
-# from urllib.parse import urljoin, urlparse
-# from concurrent.futures import ThreadPoolExecutor
-# from vectorstore import store_in_vector_db
-# from visited_url_sql_db import is_visited, mark_as_visited, init_db
 
-# MAX_THREADS = 10  # Number of parallel threads
-
-# # Configure Chrome options
-# def get_chrome_options():
-#     options = Options()
-#     options.add_argument("--headless")  # Run in headless mode
-#     options.add_argument("--disable-gpu")
-#     options.add_argument("--no-sandbox")
-#     return options
-
-# # Function to initialize ChromeDriver for each thread
-# def init_driver():
-#     """Initialize a new ChromeDriver instance for each thread."""
-#     options = get_chrome_options()
-#     driver = webdriver.Chrome(service=Service(ChromeDriverManager().install()), options=options)
-#     return driver
-
-# def interact_with_page(driver):
-#     """Click accordions, dropdowns, and buttons to reveal hidden content."""
-#     try:
-#         # Expand accordions
-#         accordions = driver.find_elements(By.XPATH, "//button[contains(@class, 'accordion')]")
-#         for accordion in accordions:
-#             driver.execute_script("arguments[0].scrollIntoView();", accordion)
-#             accordion.click()
-#             time.sleep(1)  # Allow time for content to load
-
-#         # Expand dropdowns
-#         dropdowns = driver.find_elements(By.XPATH, "//select")
-#         for dropdown in dropdowns:
-#             driver.execute_script("arguments[0].scrollIntoView();", dropdown)
-#             dropdown.click()
-#             time.sleep(1)
-
-#         # Click buttons that load additional content
-#         buttons = driver.find_elements(By.XPATH, "//button")
-#         for button in buttons:
-#             try:
-#                 driver.execute_script("arguments[0].scrollIntoView();", button)
-#                 button.click()
-#                 time.sleep(2)  # Wait for new content
-#             except:
-#                 pass  # Skip if not interactable
-
-#         # Scroll to bottom for lazy-loaded content
-#         driver.execute_script("window.scrollTo(0, document.body.scrollHeight);")
-#         time.sleep(2)
-#     except Exception as e:
-#         print(f"Error interacting with page: {e}")
-
-# def scrape_page(url):
-#     """Scrape a webpage and extract text and internal links."""
-#     if is_visited(url):
-#         return None, set()  # Skip if already visited
-
-#     print(f"Scraping: {url}")
-#     driver = init_driver()
-    
-#     try:
-#         driver.get(url)
-#         time.sleep(2)  # Allow JavaScript to load
-#         interact_with_page(driver)  # Reveal hidden content
-
-#         # Extract content using BeautifulSoup
-#         soup = BeautifulSoup(driver.page_source, "html.parser")
-
-#         # Extract text content
-#         page_text = soup.get_text(separator=" ", strip=True)
-
-#         # Extract internal links
-#         links = set()
-#         base_domain = urlparse(url).netloc
-#         for a_tag in soup.find_all("a", href=True):
-#             link = urljoin(url, a_tag["href"])
-#             if urlparse(link).netloc == base_domain:
-#                 links.add(link)
-
-#         mark_as_visited(url)  # Store URL in SQLite
-#         store_in_vector_db(url, page_text)  # Store text in vector DB
-
-#         return page_text, links
-#     except Exception as e:
-#         print(f"Error scraping {url}: {e}")
-#         return None, set()
-#     finally:
-#         driver.quit()  # Ensure the driver is closed properly
-
-# def scrape_domain(start_url, max_pages=50):
-#     """Multi-threaded scraping of all pages under a domain."""
-#     init_db()  # Ensure DB is initialized
-#     to_scrape = {start_url}
-#     scraped_count = 0
-
-#     with ThreadPoolExecutor(max_workers=MAX_THREADS) as executor:
-#         while to_scrape and scraped_count < max_pages:
-#             urls = list(to_scrape)[:MAX_THREADS]  # Process in batches
-#             to_scrape.difference_update(urls)  # Remove from queue
-
-#             # Multi-threaded execution
-#             results = executor.map(scrape_page, urls)
-
-#             for page_text, new_links in results:
-#                 if page_text:
-#                     to_scrape.update(new_links - {start_url})  # Add new links
-#                     scraped_count += 1
-
-#     print("Scraping completed.")
-
-# if __name__ == "__main__":
-#     BASE_URL = "https://www.alintaenergy.com.au"  # Change to your target website
-#     scrape_domain(BASE_URL, max_pages=1000)  # Limit to 1000 pages
-
+##############################################
 
 
 from selenium import webdriver
@@ -134,259 +9,160 @@ from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
-from selenium.common.exceptions import ElementClickInterceptedException, TimeoutException
 from bs4 import BeautifulSoup
 import time
 from urllib.parse import urljoin, urlparse
 from concurrent.futures import ThreadPoolExecutor
-import logging
-from typing import Tuple, Set, Optional
-#from vectorstore import store_in_vector_db
-from vectorstore import OptimizedVectorStore
-from visited_url_sql_db import is_visited, mark_as_visited, init_db
-
-# Set up logging
-logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
-
-MAX_THREADS = 5  # Reduced from 10 to prevent overwhelming the server
-WAIT_TIME = 10  # Maximum wait time for elements
-vector_store = OptimizedVectorStore()
+from sentence_transformers import SentenceTransformer
+from langchain.vectorstores import Chroma
+from visited_url_sql_db import is_visited, mark_as_visited, init_db  # Assuming you have this module
+from langchain.embeddings import SentenceTransformerEmbeddings
 
 
-def get_chrome_options() -> Options:
-    """Configure Chrome options for headless browsing."""
+MAX_THREADS = 10  # Number of parallel threads
+MODEL_NAME = "sentence-transformers/all-minilm-l6-v2"
+CHROMA_PERSIST_DIR = "chroma_db"  # Directory for persistent ChromaDB
+WEBSITE_COLLECTION_NAME = "website_docs"
+API_COLLECTION_NAME = "api_data"
+PDF_COLLECTION_NAME = "pdf_data"
+
+# Initialize embeddings and collections
+
+embeddings = SentenceTransformerEmbeddings(model_name=MODEL_NAME)
+
+# Persistent Chroma for website data
+website_db = Chroma(
+    persist_directory=CHROMA_PERSIST_DIR, 
+    embedding_function=embeddings, 
+    collection_name=WEBSITE_COLLECTION_NAME
+)
+
+# In-memory Chroma for API and PDF data
+api_db = Chroma(
+    embedding_function=embeddings, 
+    collection_name=API_COLLECTION_NAME
+)  # No persist_directory for in-memory
+
+pdf_db = Chroma(
+    embedding_function=embeddings, 
+    collection_name=PDF_COLLECTION_NAME
+)  # No persist_directory for in-memory
+
+
+# Initialize Sentence Transformer model
+model = SentenceTransformer(MODEL_NAME)
+
+# Chrome options (headless)
+def get_chrome_options():
     options = Options()
-    options.add_argument("--ignore-certificate-errors")
-    options.add_argument("--incognito")  # Optional: Starts Chrome in incognito mode
     options.add_argument("--headless")
     options.add_argument("--disable-gpu")
     options.add_argument("--no-sandbox")
-    options.add_argument("--disable-dev-shm-usage")
-    options.add_argument("--window-size=1920,1080")
     return options
 
-def init_driver() -> webdriver.Chrome:
-    """Initialize a new ChromeDriver instance with error handling."""
+# Initialize ChromeDriver for each thread
+def init_driver():
+    options = get_chrome_options()
+    driver = webdriver.Chrome(service=Service(ChromeDriverManager().install()), options=options)
+    return driver
+
+# Interact with dynamic content (accordions, buttons, dropdowns)
+def interact_with_page(driver):
     try:
-        options = get_chrome_options()
-        driver = webdriver.Chrome(service=Service(ChromeDriverManager().install()), options=options)
-        driver.set_page_load_timeout(30)
-        return driver
-    except Exception as e:
-        logging.error(f"Failed to initialize driver: {e}")
-        raise
-
-def safe_click(driver: webdriver.Chrome, element) -> bool:
-    """Safely click an element with proper waits and error handling."""
-    try:
-        WebDriverWait(driver, WAIT_TIME).until(
-            EC.element_to_be_clickable(element)
-        )
-        driver.execute_script("arguments[0].scrollIntoView(true);", element)
-        time.sleep(0.5)  # Short pause for smooth scrolling
-        element.click()
-        return True
-    except (ElementClickInterceptedException, TimeoutException) as e:
-        logging.warning(f"Could not click element: {e}")
-        return False
-
-def interact_with_page(driver: webdriver.Chrome):
-    """Interact with dynamic page elements to reveal hidden content."""
-    # List of common interactive elements
-    interactive_elements = [
-        ("//button[contains(@class, 'accordion')]", "accordion"),
-        ("//div[contains(@class, 'collapse')]", "collapsible"),
-        ("//select", "dropdown"),
-        ("//button[contains(@class, 'load-more')]", "load more"),
-        ("//button[not(@disabled)]", "button")
-    ]
-
-    wait = WebDriverWait(driver, WAIT_TIME)
-    
-    for xpath, element_type in interactive_elements:
-        try:
-            elements = driver.find_elements(By.XPATH, xpath)
+        # Improved interaction logic (more robust)
+        for element_type in [By.XPATH, By.CSS_SELECTOR]:  # Try both XPATH and CSS
+            elements = driver.find_elements(element_type, "button, select, .accordion") # Add accordion class
             for element in elements:
-                if safe_click(driver, element):
-                    logging.info(f"Successfully interacted with {element_type}")
-                    time.sleep(1)  # Wait for content to load
-        except Exception as e:
-            logging.warning(f"Error interacting with {element_type}: {e}")
+                try:
+                    driver.execute_script("arguments[0].scrollIntoView();", element)
+                    element.click()
+                    time.sleep(1)
+                except Exception as e:
+                    print(f"Error interacting with {element_type}: {e}")
+                    pass
 
-    # Handle infinite scroll
-    last_height = driver.execute_script("return document.body.scrollHeight")
-    while True:
-        driver.execute_script("window.scrollTo(0, document.body.scrollHeight);")
+        driver.execute_script("window.scrollTo(0, document.body.scrollHeight);") # Lazy loading
         time.sleep(2)
-        new_height = driver.execute_script("return document.body.scrollHeight")
-        if new_height == last_height:
-            break
-        last_height = new_height
-
-# def scrape_page(url: str) -> Tuple[Optional[str], Set[str]]:
-#     """Scrape a webpage and extract text and internal links."""
-#     print('inside scrape_page 1')
-#     if is_visited(url):
-#         return None, set()
-
-#     driver = None
-#     try:
-#         logging.info(f"Scraping: {url}")
-#         driver = init_driver()
-#         driver.get(url)
-        
-#         # Wait for the page to load
-#         wait = WebDriverWait(driver, WAIT_TIME)
-#         wait.until(EC.presence_of_element_located((By.TAG_NAME, "body")))
-        
-#         interact_with_page(driver)
-#         print('inside scrape_page 2')
-#         # Extract content using BeautifulSoup
-#         soup = BeautifulSoup(driver.page_source, "html.parser")
-        
-#         # Remove unwanted elements
-#         for element in soup.select('script, style, meta, link'):
-#             element.decompose()
-
-#         # Extract text content
-#         page_text = ' '.join(soup.stripped_strings)
-#         print('inside scrape_page 3')
-#         print(page_text)
-#         # Extract internal links
-#         links = set()
-#         base_domain = urlparse(url).netloc
-#         for a_tag in soup.find_all("a", href=True):
-#             link = urljoin(url, a_tag["href"])
-#             if urlparse(link).netloc == base_domain and not link.endswith(('.pdf', '.jpg', '.png')):
-#                 links.add(link)
-
-#         mark_as_visited(url)
-#         #store_in_vector_db(url, page_text)
-#         #vector_store.store_in_vector_db(url, html=page_text)
-#         print('inside scrape_page 4')
-#         if page_text:
-#             logging.info(f"Storing scraped content from {url} into vector DB. Length: {len(page_text)} characters")
-#             vector_store.store_website_data(url, html=page_text)
-#         else:
-#             logging.warning(f"No text extracted from {url}, skipping storage")
-
-#         return page_text, links
-
-#     except Exception as e:
-#         logging.error(f"Error scraping {url}: {e}")
-#         return None, set()
-#     finally:
-#         if driver:
-#             driver.quit()
+    except Exception as e:
+        print(f"Error interacting with page: {e}")
 
 
-def scrape_page(url: str) -> Tuple[Optional[str], Set[str]]:
-    """Scrape a webpage and extract text and internal links."""
+def scrape_page(url):
     if is_visited(url):
-        logging.info(f"URL already visited: {url}")
         return None, set()
 
-    driver = None
+    print(f"Scraping: {url}")
+    driver = init_driver()
     try:
-        logging.info(f"Starting to scrape: {url}")
-        driver = init_driver()
         driver.get(url)
-        
-        # Add explicit wait for page load
-        WebDriverWait(driver, WAIT_TIME).until(
-            EC.presence_of_element_located((By.TAG_NAME, "body"))
-        )
-        
-        # Get page source before interaction
-        initial_content = driver.page_source
-        
-        # Interact with page to reveal dynamic content
+        time.sleep(2)
         interact_with_page(driver)
-        
-        # Get updated content after interaction
-        final_content = driver.page_source
-        
-        # Extract content using BeautifulSoup
-        soup = BeautifulSoup(final_content, "html.parser")
-        
-        # Remove unwanted elements
-        for element in soup.select('script, style, meta, link'):
-            element.decompose()
 
-        # Extract text content with better cleaning
-        texts = []
-        for text in soup.stripped_strings:
-            cleaned_text = ' '.join(text.split())  # Remove extra whitespace
-            if cleaned_text:  # Only add non-empty strings
-                texts.append(cleaned_text)
-        
-        page_text = ' '.join(texts)
-        
-        if not page_text.strip():
-            logging.warning(f"No text content extracted from {url}")
-            return None, set()
-            
-        logging.info(f"Extracted {len(page_text)} characters from {url}")
+        soup = BeautifulSoup(driver.page_source, "html.parser")
+        page_text = soup.get_text(separator=" ", strip=True)
 
-        # Extract internal links
         links = set()
         base_domain = urlparse(url).netloc
         for a_tag in soup.find_all("a", href=True):
             link = urljoin(url, a_tag["href"])
-            if urlparse(link).netloc == base_domain and not link.endswith(('.pdf', '.jpg', '.png')):
+            if urlparse(link).netloc == base_domain:
                 links.add(link)
 
-        # Store in vector database with error handling
-        try:
-            vector_store.store_website_data(url=url, html=page_text)
-            logging.info(f"Successfully stored content from {url} in vector database")
-        except Exception as e:
-            logging.error(f"Failed to store content in vector database for {url}: {e}")
-            return None, set()
-
         mark_as_visited(url)
-        return page_text, links
+        if page_text: # Only add if text is present
+            website_db.add_texts([page_text], ids=[url])  # Use LangChain Chroma's add_texts
 
+        return page_text, links
     except Exception as e:
-        logging.error(f"Error scraping {url}: {e}")
+        print(f"Error scraping {url}: {e}")
         return None, set()
     finally:
-        if driver:
-            try:
-                driver.quit()
-            except Exception as e:
-                logging.error(f"Error closing driver: {e}")
+        driver.quit()
 
-def scrape_domain(start_url: str, max_pages: int = 10000):
-    """Multi-threaded scraping of all pages under a domain with rate limiting."""
-    init_db()
+
+def scrape_domain(start_url, max_pages=50):
+    """Multi-threaded scraping of all pages under a domain."""
+    init_db()  # Ensure DB is initialized
     to_scrape = {start_url}
-    scraped = set()
     scraped_count = 0
 
     with ThreadPoolExecutor(max_workers=MAX_THREADS) as executor:
         while to_scrape and scraped_count < max_pages:
-            current_batch = list(to_scrape)[:MAX_THREADS]
-            to_scrape.difference_update(current_batch)
+            urls = list(to_scrape)[:MAX_THREADS]  # Process in batches
+            to_scrape.difference_update(urls)  # Remove from queue
 
-            # Execute batch
-            future_to_url = {executor.submit(scrape_page, url): url for url in current_batch}
-            for future in future_to_url:
-                url = future_to_url[future]
-                try:
-                    page_text, new_links = future.result()
-                    if page_text:
-                        scraped.add(url)
-                        to_scrape.update(new_links - scraped)
-                        scraped_count += 1
-                        logging.info(f"Successfully scraped {url}. Total: {scraped_count}/{max_pages}")
-                except Exception as e:
-                    logging.error(f"Error processing {url}: {e}")
+            # Multi-threaded execution
+            results = executor.map(scrape_page, urls)
 
-            time.sleep(1)  # Rate limiting between batches
+            for page_text, new_links in results:
+                if page_text:
+                    to_scrape.update(new_links - {start_url})  # Add new links
+                    scraped_count += 1
 
-    logging.info(f"Scraping completed. Total pages scraped: {scraped_count}")
+    print("Scraping completed.")
+
+def search_chroma(query, user_logged_in=False):
+    website_results = website_db.similarity_search(query)  # LangChain Chroma's search
+    all_results = website_results
+
+    if user_logged_in:
+        api_results = api_db.similarity_search(query)
+        pdf_results = pdf_db.similarity_search(query)
+        all_results.extend(api_results)
+        all_results.extend(pdf_results)
+
+    return all_results  # Returns list of Documents
+
 
 if __name__ == "__main__":
     BASE_URL = "https://www.alintaenergy.com.au"
-    scrape_domain(BASE_URL, max_pages=10000)
+    init_db()  # Initialize the visited URLs database
+    scrape_domain(BASE_URL, max_pages=1000)
+
+    # Example search (replace with your actual query)
+    query = "What are the Alinta Energy plans?"
+    search_results = search_chroma(query, user_logged_in=True) # Set to True if user is logged in
+    print(search_results)
+
+    # To persist the vector database:
+    client.persist()
